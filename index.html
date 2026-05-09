@@ -1,0 +1,1574 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Neonska Trka</title>
+
+  <style>
+/*  GLOBAL
+   - Resetuje marginu/padding
+   - Podesava fullscreen mod
+   - Orbitron font daje sci-fi vibe */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* sprečava skrolovanje */
+  background: #000; /* crna pozadina */
+  font-family: "Orbitron", sans-serif;
+}
+
+/* CANVAS – zauzima ceo ekran i lepi se za ivice */
+canvas {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  z-index: 1;
+}
+
+
+/*HUD – POWERUP IKONICE
+   - Centralno pozicioniranje na dnu
+   - Neon efekti i blur */
+#hud {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%); /* centriranje */
+  display: flex;
+  gap: 22px;
+
+  padding: 16px 32px;
+  background: rgba(0, 15, 25, 0.45);
+  backdrop-filter: blur(8px); /* stakleni efekt */
+
+  border: 1.6px solid rgba(0, 230, 255, 0.55);
+  box-shadow:
+      0 0 18px rgba(0, 230, 255, 0.25),
+      inset 0 0 14px rgba(0, 230, 255, 0.18);
+
+  border-radius: 14px;
+  z-index: 40;
+  animation: hudPulse 2.8s infinite ease-in-out;
+}
+
+/* pulsiranje neon HUD okvira */
+@keyframes hudPulse {
+  0%   { box-shadow: 0 0 18px rgba(0,230,255,0.25), inset 0 0 14px rgba(0,230,255,0.18); }
+  50%  { box-shadow: 0 0 26px rgba(0,230,255,0.45), inset 0 0 22px rgba(0,230,255,0.30); }
+  100% { box-shadow: 0 0 18px rgba(0,230,255,0.25), inset 0 0 14px rgba(0,230,255,0.18); }
+}
+
+/* ikonice powerupova — sakrivene dok se ne aktiviraju */
+.hud-icon {
+  width: 48px;
+  height: 48px;
+  display: none;  /* aktiviraju se runtime */
+  opacity: 0;     /* fade-in transition */
+  transition: opacity 0.3s ease, transform 0.25s ease;
+  filter: drop-shadow(0 0 10px rgba(0, 230, 255, 0.8));
+}
+
+.hud-icon:hover {
+  transform: scale(1.12);
+}
+
+
+/* TIMER u gornjem desnom uglu */
+
+#timerHUD {
+  display: none; /* ne prikazuje se dok igra ne počne */
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 50;
+  font-size: 28px;
+  color: #00eaff;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px #00eaff;
+}
+
+/* SCORE - ispod timera */
+#scoreHUD {
+    display: none;
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    z-index: 50;
+    font-size: 28px;
+    color: #00eaff;
+    letter-spacing: 2px;
+    text-shadow: 0 0 10px #00eaff;
+}
+
+#musicBtn {
+    font-size: 18px;
+    padding: 8px 24px;
+}
+
+
+
+
+/* NEON BUTTONS – sva dugmad imaju
+   sci-fi neon stil + hover glow */
+
+.neon-btn {
+  padding: 18px 40px;
+  border: 2px solid #00eaff;
+  color: #00eaff;
+  font-size: 28px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  cursor: pointer;
+  background: transparent;
+  transition: 0.3s;
+  border-radius: 8px;
+  filter: drop-shadow(0 0 10px #00eaff);
+}
+
+.neon-btn:hover {
+  background: #00eaff33;
+  filter: drop-shadow(0 0 18px #00eaff);
+}
+
+
+/*  SCREENS – start, pause, game over
+   - tamna pozadina + blur
+   - centrirani tekst i dugmad */
+
+#startScreen, #pauseScreen, #gameOverScreen {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  z-index: 90;
+
+  color: #00eaff;
+  text-shadow: 0 0 10px #00eaff;
+  font-family: Orbitron, sans-serif;
+}
+
+/* pause i game over se ne vide dok se ne aktiviraju */
+#pauseScreen, #gameOverScreen {
+  display: none;
+}
+
+h1 {
+  font-size: 64px;
+  margin-bottom: 40px;
+  letter-spacing: 4px;
+  filter: drop-shadow(0 0 15px #00eaff);
+}
+</style>
+
+
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+<!-- UI SCREENS -->
+<div id="startScreen">
+  <h1>Neonska trka</h1>
+  <button class="neon-btn" onclick="startGame()">Start Game</button>
+  <button id="musicBtn" class="neon-btn" style="margin-top:20px;">Music: ON</button>
+</div>
+
+<div id="pauseScreen">
+  <h1>PAUSED</h1>
+  <button class="neon-btn" onclick="resumeGame()">Resume</button>
+  <!-- NEW: Music button on pause screen -->
+    <button id="musicBtnPause" class="neon-btn" style="margin-top:20px;">
+        Music: ON
+    </button>
+</div>
+
+<div id="gameOverScreen">
+  <h1>GAME OVER</h1>
+  <div id="finalTime" style="font-size:26px; margin-bottom:12px;"></div>
+  <div id="scoreText" style="font-size:28px;margin-bottom:30px;"></div>
+  <button class="neon-btn" onclick="restartGame()">Restart</button>
+</div>
+
+<!-- CANVAS gde se igra renderuje -->
+<canvas id="game"></canvas>
+
+<!-- POWERUP HUD -->
+<div id="hud">
+  <img id="icon-shoot"  src="vatra.png" class="hud-icon">
+  <img id="icon-shield" src="stit.png"  class="hud-icon">
+  <img id="icon-slow"   src="sat.png"   class="hud-icon">
+</div>
+
+<!-- TIMER + SCORE -->
+<div id="timerHUD">Time: 00:00</div>
+<div id="scoreHUD">Score: 0</div>
+
+<!-- Pozadinska muzika -->
+<audio id="bgm" src="thewayhome.mp3.mp3" preload="auto" loop></audio>
+
+<script type="module">
+
+/*   GLOBALS
+    - Stanja igre
+    - Kamera
+    - Pozadinske zvezde */
+
+let running = false;
+let paused = false;
+let gameOver = false;
+let shakeTime = 0;
+let shakeIntensity = 0;
+let camX = 0;
+let camY = 0;
+let starsFar = [];
+let starsMid = [];
+let starsNear = [];
+let screenFlash = 0;
+
+
+
+
+/* Uzimamo elemente iz DOM-a */
+const startScreen = document.getElementById("startScreen");
+const pauseScreen = document.getElementById("pauseScreen");
+const gameOverScreen = document.getElementById("gameOverScreen");
+const scoreText = document.getElementById("scoreText");
+const finalTime = document.getElementById("finalTime");
+
+const iconShoot  = document.getElementById("icon-shoot");
+const iconShield = document.getElementById("icon-shield");
+const iconSlow   = document.getElementById("icon-slow");
+
+const timerHUD = document.getElementById("timerHUD");
+const musicBtn = document.getElementById("musicBtn");
+const musicBtnPause = document.getElementById("musicBtnPause");
+
+const bgm = document.getElementById("bgm");
+
+bgm.volume = 0.45; // inicijalna jačina muzike
+
+
+let musicOn = true;
+
+function toggleMusic() {
+    musicOn = !musicOn;
+
+    if (musicOn) {
+        bgm.play();
+        musicBtn.textContent = "Music: ON";
+        musicBtnPause.textContent = "Music: ON";
+    } else {
+        bgm.pause();
+        musicBtn.textContent = "Music: OFF";
+        musicBtnPause.textContent = "Music: OFF";
+    }
+}
+
+musicBtn.onclick = toggleMusic;
+musicBtnPause.onclick = toggleMusic;
+
+
+let gameStartTime = 0;
+
+/* START / PAUSE / RESTART logika */
+
+function startGame() {
+    startScreen.style.display = "none";
+    running = true;
+    gameStartTime = performance.now();
+    bgm.currentTime = 0;
+    bgm.volume = 0.55;
+
+    if (musicOn) {
+        bgm.play();
+    }
+}
+
+
+
+function pauseGame() {
+    if (!running || gameOver) return;
+
+    paused = true;
+    pauseScreen.style.display = "flex";
+
+    // ažuriraj tekst na pause music dugmetu
+    musicBtnPause.textContent = musicOn ? "Music: ON" : "Music: OFF";
+
+    bgm.pause();
+}
+
+
+function resumeGame() {
+    paused = false;
+    pauseScreen.style.display = "none";
+
+    if (musicOn) bgm.play();
+}
+
+
+function restartGame() {
+  bgm.currentTime = 0;
+  if (musicOn) bgm.play();
+  location.reload(); // jednostavno resetuje celu igru
+}
+
+/* ESC taster pauzira igru */
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") paused ? resumeGame() : pauseGame();
+});
+
+/*   ECS HELPERS
+    - compose  → funkcionalno komponovanje
+    - clone    → duboka kopija
+    - addEntity → dodavanje entiteta u igru */
+
+const compose = (...fns) => x => fns.reduce((v,f)=>f(v),x);
+const clone = o => structuredClone(o);
+// structuredClone → pravi pravi deep copy JS objekta
+
+
+
+const addEntity = (state, comp) => ({
+  ...state,
+  nextId: state.nextId + 1,
+  entities: { ...state.entities, [state.nextId]: comp }
+});
+
+// vraća NOVO stanje (immutability!)
+
+/*   INITIAL STATE */
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+// inicijalno podešavanje
+resizeCanvas();
+
+// resize događaj
+window.addEventListener("resize", resizeCanvas);
+
+
+/* Kreiranje pozadinskih zvezda */
+function createStars(arr, count, speed) {
+  for (let i = 0; i < count; i++) {
+    arr.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      speed: speed
+    });
+  }
+}
+
+// 3 sloja zvezda: daleke, srednje, blize
+createStars(starsFar, 100, 0.2);
+createStars(starsMid, 70, 0.5);
+createStars(starsNear, 40, 1.0);
+
+
+/* Praćenje tastature */
+let keys = {};
+addEventListener("keydown", e => keys[e.key] = true);
+addEventListener("keyup", e => delete keys[e.key]);
+
+/* Global state za ECS */
+let state = {
+  nextId: 1,
+  entities: {},
+  score: 0,
+  lastScoreTick: 0,
+
+  shooting: false,
+  shootingUntil: 0,
+  lastAutoShot: 0,
+
+  shield: false,
+  slowDown: false,
+  slowUntil: 0,
+
+  lastSpawn: 0,
+  lastPowerUp: 0,
+  nebulaLastSpawn: 0,
+  lastComet: 0,
+  trailTimer: 0,
+
+  difficultyStart: performance.now()
+};
+
+/*  DIFFICULTY SCALING
+    - raste tokom vremena
+    - raste sa score-om
+    - maksimalno do 4x */
+
+const difficultyFactor = s => {
+  const t = (performance.now() - s.difficultyStart) / 1000;
+  const tf = 1 + (t / 60) * 0.25; // porast po vremenu
+  const sf = 1 + (s.score / 500); // porast po poenima
+  return Math.min(tf * sf, 4);
+};
+
+/*  PLAYER (NOVI BROD) */
+
+state = addEntity(state, {
+  player: true, // označava ovo kao jedinstvenog igrača
+  position: { x: canvas.width/2, y: canvas.height - 140 },
+  velocity: { dx: 0, dy: 0 },
+  sprite: { type: "ship", shieldPulse: 0 },
+  collider: { radius: 20 }  // kolizija krugom
+});
+
+/*    STARFIELD – zvezde kao ECS entiteti */
+
+function spawnStars(n, speed) {
+  for (let i = 0; i < n; i++) {
+    state = addEntity(state, {
+      position: { x: Math.random()*canvas.width, y: Math.random()*canvas.height },
+      velocity: { dx: 0, dy: speed },
+      sprite: { type: "star", size: 1 + Math.random()*2 }
+    });
+  }
+}
+
+spawnStars(90, 0.3);
+spawnStars(70, 0.7);
+spawnStars(40, 1.0);
+
+/* Wrap sistem – kad zvezda padne ispod ekrana vrati je gore */
+const starWrapSystem = s => {
+  const ents = clone(s.entities);
+  for (const e of Object.values(ents)) {
+    if (e.sprite.type === "star" && e.position.y > canvas.height) {
+      e.position.y = -4;
+      e.position.x = Math.random()*canvas.width;
+    }
+  }
+  return { ...s, entities: ents };
+};
+
+/* NEBULA – inicijalno spawnovanje*/
+
+function spawnNebula() {
+  const colors = [
+    "rgba(80,  40,255,0.22)",
+    "rgba(0,  180,255,0.22)",
+    "rgba(255, 60,190,0.22)"
+  ];
+
+  for (let i = 0; i < 3; i++) {
+    state = addEntity(state, {
+      position: { x: Math.random() * canvas.width, y: Math.random() * canvas.height },
+      velocity: { dx: 0, dy: 0.06 },
+      sprite: { type: "nebula", size: 600 + Math.random() * 450, color: colors[i] },
+      rotation: Math.random() * Math.PI * 2,
+      life: performance.now() + 60000 // traje 60 sekundi
+    });
+  }
+}
+
+
+spawnNebula();
+
+// NEBULA WRAP SYSTEM
+// Kada maglica izađe ispod ekrana, vraća se gore
+//   kako bi izgledalo da se stalno kreće kroz prostor  //
+
+const nebulaWrapSystem = s => {
+  const ents = clone(s.entities);
+  for (const e of Object.values(ents)) {
+    if (e.sprite.type==="nebula" && e.position.y > canvas.height) {
+      e.position.y = -700;   // reset iznad ekrana
+      e.position.x = Math.random()*canvas.width;
+    }
+  }
+  return { ...s, entities: ents };
+};
+
+// NEBULA LIFE SYSTEM
+// - Nebule imaju svoj "life" timer
+// - Kada im vreme istekne → brišu se iz entiteta
+
+const nebulaLifeSystem = s => {
+  const now = performance.now();
+
+// Filtriramo entitete:
+  // zadržavamo sve koji nisu nebula ili još nisu istekli
+
+  const ents = Object.fromEntries(
+    Object.entries(s.entities).filter(([_, e]) =>
+      e.sprite.type !== "nebula" || !e.life || now < e.life
+    )
+  );
+
+  return { ...s, entities: ents };
+};
+
+
+
+
+// COMET SPAWNER
+//  - Stvara kometu s vremena na vreme
+//  - Brzina i učestalost rastu sa difficulty faktorom
+
+const cometSpawner = s => {
+  const now = performance.now();
+  const diff = difficultyFactor(s);
+
+  // Količina vremena između "talasa" kometa
+  const delay = Math.max(1800, 5000 / (0.7 + diff*0.25));
+  if (now - s.lastComet < delay) return s;
+
+  // Kreiramo novi entitet komete
+  return addEntity(
+    { ...s, lastComet: now },
+    {
+      position: { x: -150, y: 80 + Math.random()*canvas.height*0.6 },
+      velocity: {
+        dx: (3 + Math.random()*3) * (0.7 + diff*0.25),
+        dy: (0.7 + Math.random()*1) * (0.7 + diff*0.25)
+      },
+      sprite: { type:"comet", size:30, tail:[] }
+    }
+  );
+};
+
+  // ASTEROID SPAWNER
+  // Asteroidi se javljaju sa gornje strane ekrana
+  // Veličina i broj stranica kreiraju "grube" oblike
+  // Difficulty utiče na brzinu spawnovanja i padanja
+
+const spawnSystem = s => {
+  const now = performance.now();
+  const diff = difficultyFactor(s);
+
+  // Manji delay = više asteroida = teža igra
+  const delay = Math.max(400, 1200 / (0.8 + diff*0.3));
+  if (now - s.lastSpawn < delay) return s;
+
+  return addEntity(
+    { ...s, lastSpawn: now },
+
+    // ASTEROID DATA
+    {
+      position: { x: Math.random()*canvas.width, y: -50 },
+      velocity: {
+        dx: (Math.random()-0.5)*1.4,  // horizontalni drift
+        dy: (2 + Math.random()*2) * (0.7 + diff*0.25)
+      },
+      sprite: {
+        type:"asteroid",
+        size: 40 + Math.random()*40,
+        sides: 10 + Math.floor(Math.random()*6),  // broj ivica
+        noise: 0.25 + Math.random()*0.25  // "neravnine"
+      },
+      collider: { radius: 32 },
+      asteroid: true,
+      rotation: Math.random()*Math.PI*2,
+      rotationSpeed: (Math.random()-0.5)*0.03
+    }
+  );
+};
+
+  // POWERUP SPAWNER
+  // nasumično stvara powerupove (shield, slow, shoot)
+  // spustaju se odozgo
+
+const powerUpSpawner = s => {
+  const now = performance.now();
+  const diff = difficultyFactor(s);
+
+  // Spawn interval raste sa težinom
+  const delay = (5200 + Math.random()*3500) / (0.7 + diff*0.25);
+  if (now - s.lastPowerUp < delay) return s;
+
+  // Nasumičan tip powerupa
+  const types = ["shoot","shield","slow"];
+  const t = types[Math.floor(Math.random()*types.length)];
+
+  // Novi powerup entitet
+  return addEntity(
+    { ...s, lastPowerUp: now },
+    {
+      position:{ x:Math.random()*canvas.width, y:-40 },
+      velocity:{ dx:0, dy:2 },
+      sprite:{ type:"powerup", power:t, size:28, pulse:0 },
+      collider:{ radius:22 }
+    }
+  );
+};
+
+  // RANDOM NEBULA SPAWNER
+  // Tokom igre povremeno generiše ogromne maglice
+  // Vizuelni efekat koji daje dubinu
+
+const nebulaSpawner = s => {
+  const now = performance.now();
+
+  if (paused || gameOver) return s;
+
+  // Random delay 12–22 sekundi
+  const delay = 12000 + Math.random() * 10000;
+  if (now - s.nebulaLastSpawn < delay) return s;
+
+  const colors = [
+    "rgba(90, 10, 255, 0.22)",
+    "rgba(0, 150, 255, 0.22)",
+    "rgba(255, 60, 200, 0.22)"
+  ];
+
+  const life = now + 40000 + Math.random() * 20000; // Nebula traje 40–60 sekundi
+
+  const newNebula = {
+    position: { x: Math.random() * canvas.width, y: -150 },
+    velocity: { dx: 0, dy: 0.06 },
+    sprite: {
+      type: "nebula",
+      size: 600 + Math.random() * 500,
+      color: colors[Math.floor(Math.random() * colors.length)]
+    },
+    rotation: Math.random() * Math.PI * 2,
+    life
+  };
+
+  return addEntity(
+    { ...s, nebulaLastSpawn: now },
+    newNebula
+  );
+};
+
+
+
+
+  // INPUT SYSTEM
+  // Pomiče brod na osnovu strelica
+  // Ne koristi "update" na više mesta → čist FP stil
+
+const inputSystem = s => {
+  if (!running || paused || gameOver) return s;
+
+  const ns = clone(s);
+  const p = Object.values(ns.entities).find(e=>e.player);
+
+  const speed = 5;
+  if (keys.ArrowLeft)  p.position.x -= speed;
+  if (keys.ArrowRight) p.position.x += speed;
+  if (keys.ArrowUp)    p.position.y -= speed;
+  if (keys.ArrowDown)  p.position.y += speed;
+
+  // Ograničenje kretanja unutar ekrana
+
+  p.position.x = Math.max(30, Math.min(canvas.width-30, p.position.x));
+  p.position.y = Math.max(30, Math.min(canvas.height-30, p.position.y));
+
+  return ns;
+};
+
+  // MOVEMENT SYSTEM
+  // Pomiče sve entitete (asteroide, komete, powerupove)
+  // U sporom modu (slow powerup) sve se pomera sporije
+
+const movementSystem = s => {
+  if (!running || paused || gameOver) return s;
+
+  const ents = clone(s.entities);
+  const factor = s.slowDown ? 0.4 : 1;
+
+  // Pomera entitete
+  for (const e of Object.values(ents)) {
+    if (!e.position || !e.velocity) continue;
+    e.position.x += e.velocity.dx * factor;
+    e.position.y += e.velocity.dy * factor;
+  }
+
+  // PARALLAX STARFIELD — tri sloja zvezda
+  
+  for (let s of starsFar)  s.y += 0.15 * factor;
+  for (let s of starsMid)  s.y += 0.35 * factor;
+  for (let s of starsNear) s.y += 0.6  * factor;
+
+  // Loopovanje pozadine
+
+  for (let s of starsFar)  if (s.y > canvas.height + 10)  s.y = -10;
+  for (let s of starsMid)  if (s.y > canvas.height + 10)  s.y = -10;
+  for (let s of starsNear) if (s.y > canvas.height + 10)  s.y = -10;
+
+  return { ...s, entities: ents };
+};
+
+
+
+// COMET TAIL SYSTEM
+// Kometi dodaje svetleću repnu stazu
+// Svaki frame dodaje jedan segment repa
+// Segmenti postepeno blede i smanjuju se
+
+const cometTailSystem = s => {
+  const ents = clone(s.entities);
+
+  for (const e of Object.values(ents)) {
+    if (e.sprite.type !== "comet") continue;
+
+    // Dodaj rep iza komete
+    e.sprite.tail.push({
+      x: e.position.x - e.velocity.dx * 5,
+      y: e.position.y - e.velocity.dy * 5,
+      size: 25 + Math.random()*25,
+      alpha: 0.55,
+      color1: "rgba(0,230,255,1)",
+      color2: "rgba(0,0,60,0)"
+    });
+
+    // Fading i shrinking repa
+    e.sprite.tail = e.sprite.tail
+      .map(t => ({
+        ...t,
+        size: t.size * 0.985,
+        alpha: t.alpha - 0.012
+      }))
+      .filter(t => t.alpha > 0);
+  }
+  return { ...s, entities: ents };
+};
+
+//CLEANUP SYSTEM
+// Briše entitete koji su otišli daleko van ekrana
+// sprečava curenje memorije
+
+const cleanupSystem = s => {
+  const ents = Object.fromEntries(
+    Object.entries(s.entities).filter(([_,e]) =>
+      e.position &&
+      e.position.x>-200 &&
+      e.position.x<canvas.width+200 &&
+      e.position.y>-200 &&
+      e.position.y<canvas.height+200
+    )
+  );
+  return { ...s, entities: ents };
+};
+
+
+  // COLLISION SYSTEM
+   // Detektuje sudare igrača sa:
+      // • powerupovima
+      // • asteroidima
+   // Aktivira efekte poput shield, slow, shoot
+   // Ako nema shield → GAME OVER
+
+const collisionSystem = s => {
+  if (!running || paused || gameOver) return s;
+
+  let ns = clone(s);
+  const p = Object.values(ns.entities).find(e=>e.player);
+
+  for (const [id,e] of Object.entries(ns.entities)) {
+    if (!e.collider || e.player) continue;
+
+    const dx = p.position.x - e.position.x;
+    const dy = p.position.y - e.position.y;
+
+    if (Math.hypot(dx,dy) < p.collider.radius + e.collider.radius) {
+
+      /* POWERUPS
+         Kada igrač pokupi powerup → briše se,
+         pali se HUD ikonica i efekat traje X sekundi */
+
+      if (e.sprite.type === "powerup") {
+        let ents = clone(ns.entities);
+        delete ents[id];
+        ns.entities = ents;
+
+        if (e.sprite.power === "shield") {
+          ns.shield = true;
+          iconShield.style.display = "block";
+          iconShield.style.opacity = "1";
+        }
+
+        if (e.sprite.power === "slow") {
+          ns.slowDown = true;
+          ns.slowUntil = performance.now() + 5000;
+          iconSlow.style.display = "block";
+          iconSlow.style.opacity = "1";
+        }
+
+        if (e.sprite.power === "shoot") {
+          ns.shooting = true;
+          ns.shootingUntil = performance.now() + 5000;
+          ns.lastAutoShot = 0;
+          iconShoot.style.display = "block";
+          iconShoot.style.opacity = "1";
+        }
+
+        return ns;
+      }
+
+      /*  ASTEROID HIT
+         - Ako igrač ima shield → asteroid se uništava
+         - Ako nema shield → GAME OVER */
+      if (e.asteroid) {
+
+        // Igrač ZAŠTIĆEN
+        if (ns.shield) {
+          ns.shield = false;
+
+          // uništi asteroid
+          let ents = clone(ns.entities);
+          delete ents[id];
+          ns.entities = ents;
+
+          // shake efekat
+          shakeTime = 450;          // trajanje u ms
+          shakeIntensity = 10;       // jačina shake-a
+
+          return ns;
+        }
+
+/* GAME OVER SEKVENCA */
+running = false;
+gameOver = true;
+
+// Ekran kratko zasvetli
+screenFlash = 1.0;
+
+// Dodaj eksploziju broda
+const boomId = crypto.randomUUID();
+ns.entities[boomId] = {
+    id: boomId,
+    sprite: { 
+        type: "shipExplosion", 
+        alpha: 1,
+        size: 260,                  // VEĆI centralni blast
+        color: "rgba(255,180,40,0.35)" // topli glow
+    },
+    position: { x: p.position.x, y: p.position.y },
+    fade: { speed: 0.008 },         // sporije nestaje — bolje se vidi
+    life: performance.now() + 1600  // duže traje
+};
+
+// Sparks / particles oko eksplozije
+for (let i = 0; i < 55; i++) {       // više iskri!
+    ns = addEntity(ns, {
+        position: { x: p.position.x, y: p.position.y },
+        velocity: { 
+            dx:(Math.random() - 0.5) * 18,   // jače razletanje
+            dy:(Math.random() - 0.5) * 18
+        },
+        sprite:{
+            type: "explosion",
+            size: 8 + Math.random()*18,      // veće čestice
+            alpha: 1,
+            color: [
+                "#ffdd66","#ff9933","#ff5522",
+                "#ffaa33","#ffee88"
+            ][Math.floor(Math.random()*5)]
+        },
+        fade:{ speed: 0.025 }                // ostaju duže vidljive
+    });
+}
+
+
+// Ukloni igrača iz entiteta
+let ents = clone(ns.entities);
+delete ents[p.id];
+ns.entities = ents;
+
+// Prikaz UI teksta
+const total = Math.floor((performance.now() - gameStartTime) / 1000);
+finalTime.textContent = "Time: " + formatTime(total);
+scoreText.textContent = "Score: " + ns.score;
+gameOverScreen.style.display = "flex";
+
+
+      }
+    }
+  }
+  return ns;
+};
+
+/*  AUTO SHOOT SYSTEM
+   - aktivan samo ako je "shoot" powerup uključen
+   - puca svakih 160ms automatski */
+const autoShootSystem = s => {
+  if (!s.shooting || paused || gameOver) return s;
+
+  const now = performance.now();
+  if (now - s.lastAutoShot < 160) return s;
+
+  let ns = clone(s);
+  ns.lastAutoShot = now;
+
+  const p = Object.values(ns.entities).find(e=>e.player);
+
+  return addEntity(ns, {
+    position: { x:p.position.x, y:p.position.y - 25 },
+    velocity: { dx:0, dy:-13 },
+    sprite: { type:"bullet", size:6 },
+    collider: { radius:6 },
+    bullet: true
+  });
+};
+
+/*  BULLET COLLISION
+   - Meta: asteroidi
+   - Kada metak udari asteroid → oba nestaju
+   - Stvara mini-eksplozije
+   - Score +10 */
+const bulletCollisionSystem = s => {
+  if (!running || paused || gameOver) return s;
+
+  let ns = clone(s);
+
+  for (const [bid,b] of Object.entries(ns.entities)) {
+    if (!b.bullet) continue;
+
+    for (const [aid,a] of Object.entries(ns.entities)) {
+      if (!a.asteroid) continue;
+
+      const dx=b.position.x - a.position.x;
+      const dy=b.position.y - a.position.y;
+
+      if (Math.hypot(dx,dy) < a.collider.radius + 8) {
+        let ents = clone(ns.entities);
+        delete ents[bid];
+        delete ents[aid];
+        ns.entities = ents;
+
+        // Efekat mini-eksplozija
+        for (let i = 0; i < 30; i++) {
+          ns = addEntity(ns, {
+            position: { x:a.position.x, y:a.position.y },
+            velocity: { dx:(Math.random()-0.5)*7, dy:(Math.random()-0.5)*7 },
+            sprite:{
+              type: "explosion",
+              size: 8 + Math.random()*14,
+              alpha: 1,
+              color: ["#ff6600","#ff2200","#ffaa00"][Math.floor(Math.random()*3)]
+            },
+            fade:{ speed:0.02 }
+          });
+        }
+
+        ns.score += 10;
+        return ns;
+      }
+    }
+  }
+  return ns;
+};
+
+/*  EXPLOSION FADE SYSTEM
+   - Svaka eksplozija ima alpha fade-out
+   - Kada nestane → entitet se briše */
+
+const explosionFadeSystem = s => {
+  const ents = Object.fromEntries(
+    Object.entries(s.entities).map(([id,e]) => {
+      if (e.sprite.type !== "explosion") return [id,e];
+      const a = e.sprite.alpha - e.fade.speed;
+      if (a <= 0) return null;
+      return [id, {...e, sprite:{...e.sprite, alpha:a}}];
+    }).filter(Boolean)
+  );
+  return { ...s, entities: ents };
+};
+
+/*  SHIP EXPLOSION LIFE SYSTEM
+   - Glavna eksplozija broda traje određeni period
+   - Nakon toga se briše */
+
+const shipExplosionLifeSystem = s => {
+  const now = performance.now();
+
+  const ents = Object.fromEntries(
+    Object.entries(s.entities).filter(([_, e]) =>
+      e.sprite.type !== "shipExplosion" || now < e.life
+    )
+  );
+
+  return { ...s, entities: ents };
+};
+
+
+/*   TRAIL SYSTEM — plavi mlaz iza broda
+   - Kreira male čestice koje blede
+   - Efekat brzine / mlazni pogon */
+
+const trailSystem = s => {
+  if (!running || paused || gameOver) return s;
+
+  const p = Object.values(s.entities).find(e=>e.player);
+  const now = performance.now();
+
+  if (now - s.trailTimer < 35) return s;
+
+  return addEntity(
+    { ...s, trailTimer: now },
+    {
+      position: { x:p.position.x, y:p.position.y + 32 },
+      velocity: { dx:0, dy:1 },
+      sprite:{
+        type:"trail",
+        size: 16,
+        alpha: 0.85,
+        color: "#00eaff",
+        glow:  "rgba(0,220,255,0.6)"
+      },
+      fade:{ speed:0.028 }
+    }
+  );
+};
+
+//TRAIL FADE SYSTEM
+// - Za svaku česticu traga smanjuje alpha dok ne nestane
+
+const trailFadeSystem = s => {
+  const ents = Object.fromEntries(
+    Object.entries(s.entities).map(([id,e]) => {
+      if (e.sprite.type !== "trail") return [id,e];
+      const a = e.sprite.alpha - e.fade.speed;
+      if (a <= 0) return null;
+      return [id, {...e, sprite:{...e.sprite, alpha:a}}];
+    }).filter(Boolean)
+  );
+  return { ...s, entities: ents };
+};
+
+/* TIMERS
+   - Ova dva sistema proveravaju da li je istekao
+     efekat powerupa “slow” ili “shoot”.
+   - Ako jeste → resetuju stanje */
+
+// Ako je slowDown aktivan i vreme isteklo → isključi slow
+const slowEnd  = s => (s.slowDown  && performance.now()>s.slowUntil) ? {...s, slowDown:false} : s;
+
+// Ako je auto-shoot aktivan i vreme isteklo → isključi ga
+const shootEnd = s => (s.shooting && performance.now()>s.shootingUntil) ? {...s, shooting:false} : s;
+
+/* SURVIVAL SCORE
+   - Svakih ~450ms igrač dobija 1 poen samo za preživljavanje
+   - Ovaj sistem se izvršava u svakom frame-u, ali doda poen
+     samo kada je prošlo dovoljno vremena */
+
+const survivalScoreSystem = s => {
+  if (!running || paused || gameOver) return s;
+
+  const now = performance.now();
+  if (now - s.lastScoreTick < 450) return s;
+
+  return { ...s, lastScoreTick: now, score: s.score + 1 };
+};
+
+/* FORMAT TIME
+  - Helper koji formatira vreme u mm:ss */
+
+function formatTime(sec) {
+  const m = String(Math.floor(sec/60)).padStart(2,"0");
+  const s = String(sec % 60).padStart(2,"0");
+  return `${m}:${s}`;
+}
+
+/*  RENDER FUNCTIONS
+   - Svi objekti u igri imaju svoj crtać funkciju */
+
+/* --- 1) SHIP WITH AERODYNAMIC DESIGN --- */
+function drawShip(e, state) {
+  ctx.save();
+  ctx.translate(e.position.x, e.position.y);
+
+  /* Glowing cyan hull (brodovo telo) */
+  const hull = ctx.createLinearGradient(-20,-30,20,40);
+  hull.addColorStop(0, "#00eaff");
+  hull.addColorStop(1, "#0077aa");
+
+  ctx.fillStyle = hull;
+  ctx.shadowColor = "#00eaff";
+  ctx.shadowBlur = 25;
+
+  // Telo broda oblikovano sa 5 tačaka
+  ctx.beginPath();
+  ctx.moveTo(0, -32);     // nose
+  ctx.lineTo(22, 10);     // right wing
+  ctx.lineTo(12, 34);
+  ctx.lineTo(-12, 34);
+  ctx.lineTo(-22, 10);    // left wing
+  ctx.closePath();
+  ctx.fill();
+
+  /* Vetrobansko staklo */
+  ctx.fillStyle = "#00151f";
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.ellipse(0, -6, 10, 16, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  /* Shield efekat */
+  if (state.shield) {
+    // Pulsiranje štita kroz vreme
+    e.sprite.shieldPulse += 0.08;
+
+    const pulse = 32 + Math.sin(e.sprite.shieldPulse) * 3;
+    const sGrad = ctx.createRadialGradient(0,0,12, 0,0,pulse+8);
+    sGrad.addColorStop(0, "rgba(0,220,255,0.10)");
+    sGrad.addColorStop(1, "rgba(0,220,255,0.60)");
+
+    ctx.strokeStyle = sGrad;
+    ctx.lineWidth = 4;
+
+    ctx.beginPath();
+    ctx.arc(0, 0, pulse, 0, Math.PI*2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/* --- 2) STARS (ECS zvezde) --- */
+function drawStar(e){
+  ctx.fillStyle="white";
+  ctx.fillRect(e.position.x,e.position.y,e.sprite.size,e.sprite.size);
+}
+
+/* --- 3) NEBULA (ogromne svemirske maglice) --- */
+function drawNebula(e) {
+  ctx.save();
+  // Fading prema kraju života
+  if (e.life) {
+  const timeLeft = (e.life - performance.now()) / 3000;
+  if (timeLeft < 1) ctx.globalAlpha *= Math.max(timeLeft, 0.05);
+}
+
+  ctx.translate(e.position.x, e.position.y);
+
+  // Lagana rotacija kroz vreme
+  e.rotation = (e.rotation || 0) + 0.0005;
+  ctx.rotate(e.rotation);
+
+  const baseSize = e.sprite.size;
+  const t = performance.now() * 0.0002;
+
+  // Lagani puls koji menja providnost
+  const pulse = 0.85 + Math.sin(t) * 0.1;
+
+  // Spoljašnji difuzni sloj
+  ctx.globalAlpha = 0.20 * pulse;
+  ctx.fillStyle = e.sprite.color;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, baseSize * 1.15, baseSize * 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Srednji sloj (cyan/purple gradient)
+  const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, baseSize * 0.9);
+  grad.addColorStop(0, "rgba(0, 255, 255, 0.25)");
+  grad.addColorStop(0.5, "rgba(120, 0, 255, 0.25)");
+  grad.addColorStop(1, "rgba(0, 0, 40, 0)");
+
+  ctx.fillStyle = grad;
+  ctx.globalAlpha = 0.55 * pulse;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, baseSize, baseSize * 0.55, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Unutrašnja jezgra
+  ctx.globalAlpha = 0.35 * pulse;
+  ctx.fillStyle = "rgba(0,200,255,0.45)";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, baseSize * 0.45, baseSize * 0.25, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+
+/* --- 4) COMET --- */
+function drawComet(e){
+  for(const t of e.sprite.tail){
+    const g = ctx.createRadialGradient(t.x,t.y,0, t.x,t.y,t.size);
+    g.addColorStop(0, t.color1);
+    g.addColorStop(1, t.color2);
+
+    ctx.save();
+    ctx.globalAlpha = t.alpha;
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(t.x,t.y,t.size,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // jezgro komete
+  ctx.save();
+  const core = ctx.createRadialGradient(
+    e.position.x, e.position.y, 0,
+    e.position.x, e.position.y, e.sprite.size
+  );
+
+  core.addColorStop(0, "#00eaff");
+  core.addColorStop(0.6, "#0099ff");
+  core.addColorStop(1, "rgba(0,0,50,0)");
+
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(e.position.x,e.position.y,e.sprite.size,0,Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/* --- 5) ASTEROIDS (improved polygon, noise) --- */
+function drawAsteroid(e) {
+  ctx.save();
+  ctx.translate(e.position.x, e.position.y);
+  ctx.rotate(e.rotation);
+
+  const sides = e.sprite.sides;
+  const base = e.sprite.size;
+  const noise = e.sprite.noise;
+
+  ctx.fillStyle = "#6b4a2b";
+  ctx.beginPath();
+
+  // render poligona sa random ivicama (noise efekat)
+  for (let i=0; i<sides; i++){
+    const ang = (i / sides) * Math.PI * 2;
+    const radius = base * (1 - noise + Math.random()*noise);
+    const x = Math.cos(ang) * radius;
+    const y = Math.sin(ang) * radius;
+    i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+
+  ctx.closePath();
+  ctx.shadowColor = "#442200";
+  ctx.shadowBlur = 12;
+  ctx.fill();
+  ctx.restore();
+
+  // rotacija svakog frame-a
+  e.rotation += e.rotationSpeed;
+}
+
+/* --- 6) POWERUPS --- */
+function drawPowerUp(e){
+  const c = {shoot:"#FF0000", shield:"#00d4ff", slow:"#ffee00"}[e.sprite.power];
+  e.sprite.pulse = (e.sprite.pulse+0.1)%Math.PI;  // pulsiranje kruga
+  const size = e.sprite.size + Math.sin(e.sprite.pulse)*3;
+
+  ctx.save();
+  ctx.fillStyle=c;
+  ctx.shadowColor=c;
+  ctx.shadowBlur=15;
+  ctx.beginPath();
+  ctx.arc(e.position.x,e.position.y,size,0,Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/* --- 7) BULLETS --- */
+function drawBullet(e){
+  ctx.fillStyle="white";
+  ctx.fillRect(e.position.x-2,e.position.y-12,4,12);
+}
+
+/* --- 8) EXPLOSIONS --- */
+function drawExplosion(e){
+  ctx.save();
+  ctx.globalAlpha=e.sprite.alpha;
+  ctx.fillStyle=e.sprite.color;
+  ctx.beginPath();
+  ctx.arc(e.position.x,e.position.y,e.sprite.size,0,Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function spawnShipExplosion(x, y) {
+  for (let i = 0; i < 65; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 4 + Math.random() * 9;
+
+    state = addEntity(state, { // Dodaje gomilu iskri oko centra eksplozije
+      position: { x, y },
+      velocity: {
+        dx: Math.cos(angle) * speed,
+        dy: Math.sin(angle) * speed
+      },
+      life: performance.now() + 1600,
+      sprite: { 
+        type: "shipExplosion",
+        size: 5 + Math.random() * 14,
+        color: ["#ffdd55","#ffaa33","#ff7711"][Math.floor(Math.random()*3)],
+        alpha: 1
+      },
+      fade: { speed: 0.007 }
+    });
+  }
+}
+
+
+function drawShipExplosion(e) {
+  ctx.save();
+
+  const x = e.position.x;
+  const y = e.position.y;
+
+  ctx.globalAlpha = e.sprite.alpha * 1.35;
+
+  /* ---- 1) SUPER CORE FLASH (fixed) ---- */
+  const flash = ctx.createRadialGradient(x, y, 0, x, y, 60);
+  flash.addColorStop(0, "rgba(255,255,230,1)");
+  flash.addColorStop(0.25, "rgba(255,200,90,0.9)");
+  flash.addColorStop(1, "rgba(255,100,0,0)");
+  ctx.fillStyle = flash;
+  ctx.beginPath();
+  ctx.arc(x, y, 60, 0, Math.PI * 2);
+  ctx.fill();
+
+  /* ---- 2) DEEP ORANGE GLOW ---- */
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, 140);
+  glow.addColorStop(0, "rgba(255,140,0,0.65)");
+  glow.addColorStop(0.6, "rgba(255,60,0,0.25)");
+  glow.addColorStop(1, "rgba(255,0,0,0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(x, y, 140, 0, Math.PI * 2);
+  ctx.fill();
+
+  /* ---- 3) SHOCKWAVE RING ---- */
+  ctx.strokeStyle = "rgba(255,220,120,0.9)";
+  ctx.lineWidth = 9;
+  ctx.shadowBlur = 35;
+  ctx.shadowColor = "rgba(255,200,80,0.9)";
+  ctx.beginPath();
+  ctx.arc(x, y, 175, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
+
+
+
+
+
+/* --- 10) TRAIL (mlaz iza broda) --- */
+function drawTrail(e){
+  ctx.save();
+  ctx.globalAlpha=e.sprite.alpha;
+
+  const g = ctx.createLinearGradient(
+    e.position.x, e.position.y,
+    e.position.x, e.position.y + 40
+  );
+  g.addColorStop(0, e.sprite.color);
+  g.addColorStop(1, e.sprite.glow);
+
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(e.position.x, e.position.y+10, 8, 18, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/* RENDER SYSTEM — SRCE CRTANJA
+   Sve se crta u ovom sistemu, koji dolazi poslednji u pipeline-u */
+
+const renderSystem = s => {
+  ctx.save(); // uvek jedan glavni save
+
+  /*   CAMERA FOLLOW  (uvek prvo!) */
+  const player = Object.values(s.entities).find(e => e.player);
+
+  if (player) {
+    // lagano praćenje broda
+    const targetX = (canvas.width  / 2 - player.position.x) * 0.05;
+    const targetY = (canvas.height / 2 - player.position.y) * 0.05;
+
+    camX += (targetX - camX) * 0.08;
+    camY += (targetY - camY) * 0.08;
+
+    ctx.translate(camX, camY);
+  }
+
+  /* ---------------------------------------------------
+      SCREEN SHAKE  (mora ići POSLE translate(camX,camY))
+  --------------------------------------------------- */
+  if (shakeTime > 0) {
+    shakeTime -= 16; // ~1 frame
+
+    const dx = (Math.random() - 0.5) * shakeIntensity;
+    const dy = (Math.random() - 0.5) * shakeIntensity;
+
+    ctx.translate(dx, dy);
+  }
+
+  /* ---------------------------------------------------
+      CLEAR VIEWPORT
+  --------------------------------------------------- */
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (screenFlash > 0) {
+  ctx.save();
+  ctx.globalAlpha = screenFlash * 0.35;
+  ctx.fillStyle = "white";
+  ctx.fillRect(-2000, -2000, 4000, 4000);
+  ctx.restore();
+  screenFlash -= 0.05;
+}
+
+
+// BACKGROUND – EXTENDED
+const margin = 300;
+const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+bg.addColorStop(0, "rgb(5, 10, 20)");
+bg.addColorStop(1, "rgb(10, 0, 30)");
+ctx.fillStyle = bg;
+ctx.fillRect(
+  -margin,
+  -margin,
+  canvas.width + margin * 2,
+  canvas.height + margin * 2
+);
+
+// --- PARALLAX STARS ---
+function drawStars(arr) {
+  ctx.fillStyle = "white";
+  for (let s of arr) {
+    ctx.fillRect(s.x, s.y, 2, 2);
+  }
+}
+
+// Draw layers
+drawStars(starsFar);
+drawStars(starsMid);
+drawStars(starsNear);
+
+
+
+/* --- ENTITETI --- */
+for (const e of Object.values(s.entities)) if (e.sprite.type==="nebula") drawNebula(e);
+for (const e of Object.values(s.entities)) if (e.sprite.type==="star") drawStar(e);
+for (const e of Object.values(s.entities)) if (e.sprite.type==="comet") drawComet(e);
+for (const e of Object.values(s.entities)) if (e.sprite.type==="asteroid") drawAsteroid(e);
+for (const e of Object.values(s.entities)) if (e.sprite.type==="powerup") drawPowerUp(e);
+for (const e of Object.values(s.entities)) if (e.sprite.type==="bullet") drawBullet(e);
+
+// SMALL EXPLOSIONS
+for (const e of Object.values(s.entities)) if (e.sprite.type==="explosion") drawExplosion(e);
+
+// TRAIL
+for (const e of Object.values(s.entities)) if (e.sprite.type==="trail") drawTrail(e);
+
+// SHIP
+for (const e of Object.values(s.entities)) if (e.sprite.type==="ship") drawShip(e, s);
+
+// BRODOVA EKSPLOZIJA — uvek poslednja da prekriva sve
+for (const e of Object.values(s.entities)) 
+  if (e.sprite.type === "shipExplosion") {
+    ctx.save();
+    drawShipExplosion(e);
+    ctx.restore();
+  }
+
+
+  /* --- HUD: TIMER --- */
+if (running && !paused && !gameOver) {
+    timerHUD.style.display = "block";
+    const t = Math.floor((performance.now() - gameStartTime) / 1000);
+    timerHUD.textContent = "Time: " + formatTime(t);
+} else {
+    timerHUD.style.display = "none";
+}
+
+  /* --- HUD: SCORE --- */
+if (running && !paused && !gameOver) {
+    scoreHUD.style.display = "block";
+    scoreHUD.textContent = "Score: " + s.score;
+} else {
+    scoreHUD.style.display = "none";
+}
+
+
+
+  ctx.fillStyle="white";
+  ctx.font="24px Orbitron";
+  
+  /* --- HUD IKONICE POWERUPA --- */
+  iconShield.style.display = state.shield ? "block" : "none";
+  iconShoot.style.display  = state.shooting ? "block" : "none";
+  iconSlow.style.display   = state.slowDown ? "block" : "none";
+
+  iconShield.style.opacity = state.shield ? "1" : "0";
+  iconShoot.style.opacity  = state.shooting ? "1" : "0";
+  iconSlow.style.opacity   = state.slowDown ? "1" : "0";
+
+  ctx.restore();
+
+  return s;
+};
+
+
+
+/*  UPDATE PIPELINE — redosled izvršavanja sistema
+   Ovo je srce funkcionalnog ECS dizajna.
+   compose(...) kreira funckiju gde se pozivaju redom:
+   input → movement → spawn → collisions → render... */
+
+const update = compose(
+  inputSystem,
+  movementSystem,
+  nebulaSpawner,
+  spawnSystem,
+  cometSpawner,
+  powerUpSpawner,
+  collisionSystem,
+  autoShootSystem,
+  bulletCollisionSystem,
+  explosionFadeSystem,
+  shipExplosionLifeSystem,
+  survivalScoreSystem,
+  slowEnd,
+  shootEnd,
+  starWrapSystem,
+  nebulaWrapSystem,
+  nebulaLifeSystem,
+  cometTailSystem,
+  cleanupSystem,
+  trailSystem,
+  trailFadeSystem,
+  renderSystem
+);
+
+/*MAIN LOOP – glavni game loop preko requestAnimationFrame */
+
+function loop(){
+  if (!paused && running) state = update(state);
+  requestAnimationFrame(loop);
+}
+loop();
+
+/* GLOBAL BINDINGS — moraju biti dostupni iz HTML-a */
+
+window.startGame = startGame;
+window.pauseGame = pauseGame;
+window.resumeGame = resumeGame;
+window.restartGame = restartGame;
+
+</script>
+</body>
+</html>
+</html>
